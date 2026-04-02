@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
+import { getAvatarColor } from '../utils/avatarColor'; // NEW
 
 function timeAgo(dateStr) {
   const diff = (Date.now() - new Date(dateStr)) / 1000;
@@ -77,7 +78,7 @@ export default function CommentModal({ post, onClose, onCommentAdded }) {
           ) : (
             comments.map((c) => (
               <div className="comment-item" key={c._id}>
-                <div className="avatar-circle" style={{ width: 32, height: 32, fontSize: 12, flexShrink: 0 }}>
+                <div className="avatar-circle" style={{ width: 32, height: 32, fontSize: 12, flexShrink: 0, backgroundColor: getAvatarColor(c.username) }}>
                   {c.username[0].toUpperCase()}
                 </div>
                 <div className="comment-body">
@@ -92,7 +93,7 @@ export default function CommentModal({ post, onClose, onCommentAdded }) {
         </div>
 
         <div className="modal-input-row">
-          <div className="avatar-circle" style={{ width: 32, height: 32, fontSize: 12, flexShrink: 0 }}>
+          <div className="avatar-circle" style={{ width: 32, height: 32, fontSize: 12, flexShrink: 0, backgroundColor: getAvatarColor(user?.username) }}>
             {initial}
           </div>
           <input

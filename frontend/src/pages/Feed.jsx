@@ -38,6 +38,13 @@ export default function Feed() {
     setPosts((prev) => prev.filter((p) => p._id !== id));
   };
 
+  // NEW: Instantly sync state from PostCard back to Feed for accurate sorting
+  const handleUpdatePost = (postId, updatedFields) => {
+    setPosts((prev) =>
+      prev.map((p) => (p._id === postId ? { ...p, ...updatedFields } : p))
+    );
+  };
+
   const handleLoadMore = async () => {
     if (loadingMore || !pagination.hasMore) return;
     setLoadingMore(true);
@@ -45,11 +52,20 @@ export default function Feed() {
     setLoadingMore(false);
   };
 
-  // Client-side sort for tabs
+  // UPDATED: Robust client-side sort for tabs ensuring 0 fallbacks and chronological default
   const displayPosts = [...posts].sort((a, b) => {
-    if (activeTab === 'Most Liked')     return (b.likes?.length ?? 0) - (a.likes?.length ?? 0);
-    if (activeTab === 'Most Commented') return (b.comments?.length ?? 0) - (a.comments?.length ?? 0);
-    return 0; // All Posts = server order (newest first)
+    if (activeTab === 'Most Liked') {
+      const aLikes = a.likes?.length || 0;
+      const bLikes = b.likes?.length || 0;
+      return bLikes - aLikes;
+    }
+    if (activeTab === 'Most Commented') {
+      const aComments = a.commentsCount ?? a.comments?.length ?? 0;
+      const bComments = b.commentsCount ?? b.comments?.length ?? 0;
+      return bComments - aComments;
+    }
+    // All Posts = server order (newest first fallback)
+    return new Date(b.createdAt) - new Date(a.createdAt);
   });
 
   return (
@@ -84,7 +100,12 @@ export default function Feed() {
         ) : (
           <>
             {displayPosts.map((post) => (
-              <PostCard key={post._id} post={post} onDelete={handleDelete} />
+              <PostCard 
+                key={post._id} 
+                post={post} 
+                onDelete={handleDelete}
+                onUpdate={handleUpdatePost} 
+              />
             ))}
 
             {pagination.hasMore && activeTab === 'All Posts' && (

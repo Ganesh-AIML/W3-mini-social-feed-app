@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
+import { getAvatarColor } from '../utils/avatarColor'; // NEW
 
 export default function CreatePost({ onCreated }) {
   const { user } = useAuth();
@@ -59,7 +60,12 @@ export default function CreatePost({ onCreated }) {
   return (
     <div className="create-post-card">
       <div className="create-post-header">
-        <div className="avatar-circle">{initial}</div>
+        <div 
+          className="avatar-circle"
+          style={{ backgroundColor: getAvatarColor(user?.username) }} /* NEW */
+        >
+          {initial}
+        </div>
         <textarea
           className="create-post-input"
           placeholder="What's on your mind?"

@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import CommentModal from './CommentModal';
 import toast from 'react-hot-toast';
+import { getAvatarColor } from '../utils/avatarColor'; // NEW
 
 function timeAgo(dateStr) {
   const diff = (Date.now() - new Date(dateStr)) / 1000;
@@ -14,7 +15,8 @@ function timeAgo(dateStr) {
   });
 }
 
-export default function PostCard({ post, onDelete }) {
+// UPDATED: Accept onUpdate prop
+export default function PostCard({ post, onDelete, onUpdate }) {
   const { user } = useAuth();
   const [likes, setLikes] = useState(post.likes || []);
   const [commentsCount, setCommentsCount] = useState(
@@ -29,19 +31,27 @@ export default function PostCard({ post, onDelete }) {
 
   const handleLike = async () => {
     if (liking) return;
-    // Optimistic update
-    setLikes((prev) =>
-      isLiked ? prev.filter((u) => u !== user.username) : [...prev, user.username]
-    );
+    
+    // Determine new state
+    const newLikes = isLiked 
+      ? likes.filter((u) => u !== user.username) 
+      : [...likes, user.username];
+
+    // Optimistic UI update locally & in Feed parent
+    setLikes(newLikes);
+    if (onUpdate) onUpdate(post._id, { likes: newLikes });
     setLiking(true);
+
     try {
       const { data } = await api.put(`/posts/${post._id}/like`);
+      // Sync exact server data
       setLikes(data.likes);
+      if (onUpdate) onUpdate(post._id, { likes: data.likes });
     } catch {
-      // Revert on error
-      setLikes((prev) =>
-        isLiked ? [...prev, user.username] : prev.filter((u) => u !== user.username)
-      );
+      // Revert on error locally & in Feed parent
+      const revertedLikes = isLiked ? [...likes, user.username] : likes.filter((u) => u !== user.username);
+      setLikes(revertedLikes);
+      if (onUpdate) onUpdate(post._id, { likes: revertedLikes });
       toast.error('Failed to like');
     } finally {
       setLiking(false);
@@ -61,6 +71,8 @@ export default function PostCard({ post, onDelete }) {
 
   const handleCommentAdded = (postId, newCount) => {
     setCommentsCount(newCount);
+    // Push exact comment count to Feed parent
+    if (onUpdate) onUpdate(postId, { commentsCount: newCount });
   };
 
   const initial = post.author?.username?.[0]?.toUpperCase() || '?';
@@ -68,12 +80,19 @@ export default function PostCard({ post, onDelete }) {
   return (
     <>
       <div className="post-card">
-        {/* Header */}
         <div className="post-header">
           <div className="post-author">
-            <div className="avatar-circle">{initial}</div>
+            <div 
+              className="avatar-circle"
+              style={{ backgroundColor: getAvatarColor(post.author?.username) }} /* NEW */
+            >
+              {initial}
+            </div>
             <div className="post-meta">
-              <span className="post-username">@{post.author?.username}</span>
+              <div className="post-user-info">
+                <span className="post-name">{post.author?.username || 'User'}</span>
+                <span className="post-handle">@{post.author?.username?.toLowerCase() || 'user'}</span>
+              </div>
               <span className="post-time">{timeAgo(post.createdAt)}</span>
             </div>
           </div>
@@ -93,26 +112,24 @@ export default function PostCard({ post, onDelete }) {
           />
         )}
 
-        {/* Actions */}
+        {/* Actions spread evenly */}
         <div className="post-actions">
           {/* Like */}
-          <button
-            className={`action-btn ${isLiked ? 'liked' : ''}`}
-            onClick={handleLike}
-          >
-            <svg viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+          <button className={`action-btn ${isLiked ? 'liked' : ''}`} onClick={handleLike}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill={isLiked ? "currentColor" : "none"} strokeWidth="2" stroke="currentColor">
               <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
             </svg>
-            {likes.length > 0 && <span>{likes.length}</span>}
-            {likes.length === 0 && <span>Like</span>}
+            <span>{likes.length}</span>
           </button>
 
           {/* Comment */}
           <button className="action-btn" onClick={() => setShowComments(true)}>
-            <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" stroke="currentColor">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" strokeWidth="2" stroke="currentColor">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              <line x1="9" y1="9" x2="15" y2="9" />
+              <line x1="9" y1="13" x2="15" y2="13" />
             </svg>
-            {commentsCount > 0 ? <span>{commentsCount}</span> : <span>Comment</span>}
+            <span>{commentsCount}</span>
           </button>
 
           {/* Share */}
@@ -120,22 +137,19 @@ export default function PostCard({ post, onDelete }) {
             navigator.clipboard?.writeText(window.location.href);
             toast.success('Link copied!');
           }}>
-            <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" stroke="currentColor">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" strokeWidth="2" stroke="currentColor">
               <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
               <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
               <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
             </svg>
-            <span>Share</span>
+            <span>0</span>
           </button>
 
           {/* Delete (owner only) */}
           {isOwner && (
-            <button className="action-btn delete-btn" onClick={handleDelete} style={{ marginLeft: 'auto' }}>
-              <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" stroke="currentColor">
-                <polyline points="3 6 5 6 21 6"/>
-                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                <path d="M10 11v6M14 11v6"/>
-                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+            <button className="action-btn delete-btn" onClick={handleDelete}>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" strokeWidth="2" stroke="currentColor">
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m15 0a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2m15 0H3"/>
               </svg>
             </button>
           )}
